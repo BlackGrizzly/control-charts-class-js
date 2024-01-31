@@ -153,7 +153,6 @@ class ruleClass {
 	}
 
 }
-// Правило 1
 
 // метки 
 class tickClass {
@@ -212,7 +211,7 @@ class tickClass {
 		this._ticks[val] = name;
 	}
 }
-// 
+// базовый класс для рисования графика
 class map {
 	// конструктор
 	constructor(source, width, height) {
@@ -232,8 +231,10 @@ class map {
 		}
 		this._points = [];
 		this._max_x = 0;
-		this._max_y = 0;
-		this._min_y = 0;
+		this._max_y = null;
+		this._min_y = null;
+		this._fix_max_y = null;
+		this._fix_min_y = null;
 		this._mapLine = {
 			cLine: { points: [], color: "green", dash: "", name: "CL" },
 			tLine: { points: [], color: "red", dash: "", name: "UCL" },
@@ -241,7 +242,9 @@ class map {
 			sig1Line1: { points: [], color: "gray", dash: "10 5", name: "1sigma" },
 			sig1Line2: { points: [], color: "gray", dash: "10 5", name: "1sigma" },
 			sig2Line1: { points: [], color: "gray", dash: "10 5", name: "2sigma" },
-			sig2Line2: { points: [], color: "gray", dash: "10 5", name: "2sigma" }
+			sig2Line2: { points: [], color: "gray", dash: "10 5", name: "2sigma" },
+            topReqLine: { points: [], color: "blue", dash: "", name: "Requirement" },
+            bottomReqLine: { points: [], color: "blue", dash: "", name: "Requirement" },
 		};
 		this.xAxis = {
 			caption: "",
@@ -254,11 +257,14 @@ class map {
 		this.getValue = function (v) { return v; };
 		this.getSublineValue = function (v) { return v; };
 		this.clickCall = function (i, v) { return this; };
+		this.contextmenuCall = function (i, v, id) { return this; };
 		this.ticks = {};
 		this.subline = {};
 		this.area = undefined;
 		this.clickEvent = true;
 		this.caption = "";
+        this.ticketPlaces = 0;
+        this.valuePlaces = 1;
 	}
 
 	get points() {
@@ -293,6 +299,11 @@ class map {
 		return this;
 	}
 
+	setContextmenuCall(func) {
+		this.contextmenuCall = func;
+		return this;
+	}
+
 	setMapLine(line, val_array) {
 		this._mapLine[line].points = val_array;
 		return this;
@@ -318,6 +329,11 @@ class map {
 		return this;
 	}
 
+    setDecimalPlaces(ticketPlaces=0, valuePlaces=1) {
+        this.ticketPlaces = ticketPlaces;
+        this.valuePlaces = valuePlaces;
+    }
+
 	get min_y() {
 		return this._min_y;
 	}
@@ -340,6 +356,22 @@ class map {
 
 	set max_y(val) {
 		this._max_y = val;
+	}
+
+	set fix_min_y(val) {
+		this._fix_min_y = val;
+	}
+
+	set fix_max_y(val) {
+		this._fix_max_y = val;
+	}
+
+	get fix_min_y() {
+		return this._fix_min_y;
+	}
+
+	get fix_max_y() {
+		return this._fix_max_y;
 	}
 
 	// отрисовка карты
@@ -367,8 +399,10 @@ class map {
 			.domain([1, this.max_x])
 			.range([margin + 20, xAxisLength]);
 		// функция интерполяции значений на ось Y
+        let max_y = this.fix_max_y ? this.fix_max_y : this.max_y,
+            min_y = this.fix_min_y ? this.fix_min_y : this.min_y;
 		let scaleY = d3.scaleLinear()
-			.domain([this.max_y, this.min_y])
+			.domain([max_y, min_y])
 			.range([margin + 5 + captionOffset, yAxisLength]);
 
 		// Подпись карты
@@ -392,16 +426,19 @@ class map {
 		let tickValues = [];
 		console.log(this.mapLine);
 		for (let i in this.mapLine) {
-			tickValues.push(this.mapLine[i].points[0][1]);
+            if (this.mapLine[i].points.length > 0)
+			    tickValues.push(this.mapLine[i].points[0][1]);
 		}
+        let ticketPlaces = this.ticketPlaces;
 		// создаем ось Y             
 		let yAxis = d3.axisLeft()
 			.scale(scaleY)
 			//.ticks(tickCount)
 			.tickValues(tickValues)
 			.tickFormat(function (d) {
-				return d3.format("d")(d);
+				return d3.format("." + ticketPlaces + "f")(d);
 			});
+        console.log("." + ticketPlaces + "f");
 		/*.tickFormat(function(d, i) { 
 		   if ((i % 5) == 0 && (d != max || d != min || d != middle))
 			   return d;
@@ -500,8 +537,8 @@ class map {
 							linesGroup.append("line")
 								.attr("x1", scaleX(ticks[i].values[j]))
 								.attr("x2", scaleX(ticks[i].values[j]))
-								.attr("y1", scaleY(this.min_y))
-								.attr("y2", scaleY(this.max_y))
+								.attr("y1", scaleY(min_y))
+								.attr("y2", scaleY(max_y))
 								.style("stroke", ticks[i].color);
 						}
 					}
@@ -556,6 +593,7 @@ class map {
 		// 			, ["CL", "green"], ["UCL, LCL", "red"], ["1sigma, 2sigma", "gray"], ["Requirement", "blue"]
 		// карта
 		// контрольные пределы карты
+        let valuePlaces = this.valuePlaces;
 		for (let mline in this.mapLine) {
 			if (this.mapLine[mline].points.length != 0) {
 				let mapLine = this.mapLine;
@@ -570,7 +608,7 @@ class map {
 					.on("mouseover", function () {
 						let cx = d3.event.pageX + 5,// + d3.mouse(this)[0],
 							cy = d3.event.pageY - 30;// + d3.mouse(this)[1];
-						let text = mapLine[mline].points.length == 2 ? roundNumber(mapLine[mline].points[0][1], 1) : "";
+						let text = mapLine[mline].points.length == 2 ? roundNumber(mapLine[mline].points[0][1], valuePlaces) : "";
 						if (text != "") {
 							d3.select(".board")
 								.text(text)
@@ -721,6 +759,19 @@ class map {
 				d3.select(".board")
 					.style("display", "none");
 			});
+        // TODO:
+        // требования
+        if (this.mapLine.topReqLine.points.length > 0 || this.mapLine.bottomReqLine.points.length > 0) {
+            state = this.checkRequirement();
+            svg.append("text")
+                .attr("x", xAxisLength - 115)
+                .attr("dy", "0.7em")
+                .classed(this.colorReq+"Line", true)
+                .style("font-size", "0.9em")
+                .style("fill", state.color)
+                .text(state.text);
+        }
+
 		// добавляем путь: график
 		svg.append("g").append("path")
 			.attr("d", line(this.points))
@@ -731,6 +782,8 @@ class map {
 		// добавляем точки
 		let limits = this._limits,
 			chart = this;
+        // отмечаем отключенные точки
+        // крестик
 		svg.selectAll("g.map")
 			.data(this.points)
 			.enter()
@@ -771,6 +824,7 @@ class map {
 			.attr("stroke", "red")
 			.attr("stroke-width", 5)
 			.classed("xpoint", true);
+        // пунктирная линия
 		svg.selectAll("g.map")
 			.data(this.points)
 			.enter()
@@ -791,32 +845,11 @@ class map {
 			.attr("stroke", "red")
 			.attr("stroke-dasharray", "10 5")
 			.attr("stroke-width", 1)
-			.classed("xpoint", true);
-		svg.selectAll("g.map")
-			.data(this.points)
-			.enter()
-			.append("rect")
-			.filter(function (d) { return d != null; })
-			.attr("x", function (d) {
-				if (d != null) return (scaleX(d[0]) - 3);
-			})
-			.attr("y", function (d) {
-				if (d != null) return (scaleY(d[1]) - 3);
-			})
-			.attr("title", function (d) {
-				if (d != null) return d[0];
-			})
-			.style("fill", function (d) {
-				if (d != null && !d[2]) return "red";
-			})
-			.classed("point", true)
-			.attr("width", 7)
-			.attr("height", 7)
-			.attr("fill", "black")
-			.attr("data-i", function (d) { if (d != null) return d[0] })
+			.classed("xpoint", true)
+            .attr("data-i", function (d) { if (d != null) return d[0] })
 			.attr("data-v", function (d) { if (d != null) return d[1] })
 			.attr("data-id", function (d) { if (d != null) return d[3] })
-			.on("mouseover", function () {
+			.on("mouseover", async function () {
 				// событие при наведении мыши на точку
 				if (!d3.event.altKey) {
 					let cx = d3.event.pageX + 5,
@@ -825,7 +858,7 @@ class map {
 					let i = this.dataset.i,
 						v = this.dataset.v,
 						id = this.dataset.id;
-					v = getValue(v, limits, i, id);
+					v = await getValue(v, limits, i, id);
 					d3.selectAll(".vline" + i)
 						.style("stroke-opacity", "1");
 					d3.selectAll(".line" + i)
@@ -857,7 +890,7 @@ class map {
 					let i = this.dataset.i;
 					console.log('click point' + i);
 					// отключаем точку
-					chart.points[i - 1][2] = !chart.points[i - 1][2];
+					//chart.points[i - 1][2] = !chart.points[i - 1][2];
 					// функция вызова перерисовки графика
 					chart.clickCall(i, chart.points[i - 1][1]);
 					//d3.select(this).style("color", 'gray');
@@ -866,6 +899,87 @@ class map {
 					//$("html, body").animate({ scrollTop: destination },"slow");
 				}
 			});
+        // рисуем все точки
+		svg.selectAll("g.map")
+			.data(this.points)
+			.enter()
+			.append("rect")
+			.filter(function (d) { return d != null; })
+			.attr("x", function (d) {
+				if (d != null) return (scaleX(d[0]) - 3);
+			})
+			.attr("y", function (d) {
+				if (d != null) return (scaleY(d[1]) - 3);
+			})
+			.attr("title", function (d) {
+				if (d != null) return d[0];
+			})
+			.style("fill", function (d) {
+				if (d != null && !d[2]) return "red";
+			})
+			.classed("point", true)
+			.attr("width", 7)
+			.attr("height", 7)
+			.attr("fill", "black")
+			.attr("data-i", function (d) { if (d != null) return d[0] })
+			.attr("data-v", function (d) { if (d != null) return d[1] })
+			.attr("data-id", function (d) { if (d != null) return d[3] })
+			.on("mouseover", async function () {
+				// событие при наведении мыши на точку
+				if (!d3.event.altKey) {
+					let cx = d3.event.pageX + 5,
+						cy = d3.event.pageY - 30,
+						vx = d3.event.view.innerWidth;
+					let i = this.dataset.i,
+						v = this.dataset.v,
+						id = this.dataset.id;
+					v = await getValue(v, limits, i, id);
+					d3.selectAll(".vline" + i)
+						.style("stroke-opacity", "1");
+					d3.selectAll(".line" + i)
+						.style("background", "#BFBFBF");
+					let board = d3.select(".board");
+					board.html(v)
+						.style("top", cy + "px")
+						.style("left", cx + "px")
+						.style("display", "block");
+					let bx = board.style("width");
+					bx = bx.replace("px", "");
+					if ((cx + parseInt(bx) + 30) >= vx)
+						board.style("left", (cx - parseInt(bx) - 30) + "px");
+				}
+			})
+			.on("mouseout", function () {
+				// событие при уходе курсора мыши с точки
+				let i = this.dataset.i;
+				d3.selectAll(".vline" + i)
+					.style("stroke-opacity", "0.2");
+				d3.selectAll(".line" + i)
+					.style("background", "#FFFFFF");
+				d3.select(".board")
+					.style("display", "none");
+			})
+			.on("click", function () {
+				// событие на клик по точке
+				if (chart.clickEvent) {
+					let i = this.dataset.i;
+					console.log('click point' + i);
+					// отключаем точку
+					//chart.points[i - 1][2] = !chart.points[i - 1][2];
+					// функция вызова перерисовки графика
+					chart.clickCall(i, chart.points[i - 1][1]);
+					//d3.select(this).style("color", 'gray');
+					//$(".line").removeClass("curLine");
+					//let destination = $(".line"+i).addClass("curLine").offset().top - d3.event.y + 10;
+					//$("html, body").animate({ scrollTop: destination },"slow");
+				}
+			})
+            .on("contextmenu", function(point, indx) {
+                //e.preventDefault();
+                //d3.event.preventDefault();
+                console.log('contextmenu point' + point[0]);
+                chart.contextmenuCall(point[0], point[1], point[3])
+            });
 
 		return this;
 	}
@@ -1139,18 +1253,101 @@ class map {
 		else
 			return { text: "Непредсказуемый!", color: "red", line: this.mapLine.tLine.color, rule: chartRules[rule], points: points };
 	}
+    // функция установки требований
+    setRequirements(bottom, top, color) { 
+        // topReqLine: { points: [], color: "blue", dash: "", name: "Requirement" },
+        // bottomReqLine: { points: [], color: "blue", dash: "", name: "Requirement" },
+        this.colorReq = color;
+        if (top) {
+            this.topReq = top;
+            this.mapLine.topReqLine.points.push([1, top]);
+            this.mapLine.topReqLine.points.push([this.points.length, top]);
+            this.mapLine.topReqLine.color = color;
+        }
+        if (bottom) {
+            this.mapLine.bottomReqLine.points.push([1, bottom]);
+            this.mapLine.bottomReqLine.points.push([this.points.length, bottom]);
+            this.mapLine.bottomReqLine.color = color;
+            this.bottomReq = bottom;
+        }
+
+    }
+    // функция проверки требований
+    checkRequirement() {
+        let pass = true;
+        for (let i = 0; i < this.points.length; i++)
+        {
+            //если точка карты пустая, значит ее пропустили. Пропускаем цикл
+            if (this.points[i] == null || this.points[i][2] == false)
+                continue;
+
+            //проверяем на верхний и нижний пердел
+            if (this.topReq && this.points[i][1]>this.topReq) { 
+                pass = false;
+                break;
+            }
+            if (this.bottomReq && this.points[i][1]<this.bottomReq) {
+                pass = false;
+                break;
+            }
+        }
+		if (pass)
+			return {text: "Удовлетворяет", color: "green"}; 
+		else
+			return {text: "Не удовлетворяет!", color: "red"};
+    }
+}
+// абстрактный клас контрольной карты
+class AbstractMap {
+    constructor() {
+        if (this.constructor == AbstractMap) {
+            throw new Error("Abstract classes can't be instantiated.");
+        }
+        this.maps = {};
+        this.hideMinus = false;
+        this.valuePlaces = 1;
+        this.q_count = 0;
+	} 
+
+    calc(limits = new limitsClass, fix_limit = false, fix_scale = false) {
+        throw new Error("Method 'calc()' must be implemented.");
+    }
+
+	points(points, grouped = false, max_point, min_point) {
+        throw new Error("Method 'points()' must be implemented.");
+    }
+
+	// получение карты
+	get_map(map_name) {
+		if (this.maps[map_name])
+			return this.maps[map_name];
+		return undefined;
+	}
+    // показывать отрицательные значения
+    setHideMinus(enable = false) {
+        this.hideMinus = enable;
+        return this;
+    }
+    // становка знаков после запятой
+    setValuePlaces(valuePlaces = 1) {
+        this.valuePlaces = valuePlaces;
+    }
+    // зафиксировать масштаб по оси Y для карты
+    fixScale(map_name, max_y, min_y) {
+        this.maps[map_name].fix_max_y = max_y;
+        this.maps[map_name].fix_min_y = min_y;
+    }
 }
 // класс x карты
-class xMap {
-	// конструктор
-	constructor(source, width, height) {
-		this.maps = {};
-		this.maps[X_MAP] = new map(source[0], width, height);
-		this.maps[MR_MAP] = new map(source[1], width, height);
-        this.hideMinus = false;
-	}
+class xMap extends AbstractMap {
+    // конструктор
+    constructor(source, width, height) {
+        super();
+        this.maps[X_MAP] = new map(source[0], width, height);
+        this.maps[MR_MAP] = new map(source[1], width, height);
+    }
 	// рассчетная функция для x - mR карты
-	calc(limits = new limitsClass, fix_limit = false) {
+	calc(limits = new limitsClass, fix_limit = false, fix_scale = false) {
 		let prev_value = null,
 			sum = 0,
 			sum2 = 0,
@@ -1158,20 +1355,26 @@ class xMap {
 			value2 = 0,
 			count = 0,
 			count2 = 0,
-			max = this.maps[X_MAP].max_y,
-			max2 = 0,
-			min = this.maps[X_MAP].min_y, 
+			max = fix_scale ? this.maps[X_MAP].max_y : null,
+			max2 = null, //0,
+			min = fix_scale ? this.maps[X_MAP].min_y : null, 
 			min2 = null,
 			point = 0,
 			sigma = 0,
-			e_count = this.maps[X_MAP].max_x;
-            // TODO: max_x может не быть равным кол-во точек!
+			e_count = this.maps[X_MAP].max_x;             
 
-		console.log(this);
-
+        // поиск максимума и минимума. формирование точек для mr-карты
 		for (let i = 1; i <= e_count; i++) {
 			if (this.maps[X_MAP].points[i - 1][2]) {
 				value = this.maps[X_MAP].points[i - 1][1];
+                if (min == null)
+                    min = value;
+                if (max == null)
+                    max = value;
+                if (value > max)
+                    max = value;
+                if (value < min)
+                    min = value;
 				if (prev_value != null) {
 					value2 = Math.abs(prev_value - value);
 					if (min2 == null)
@@ -1180,20 +1383,14 @@ class xMap {
 						max2 = value2;
 					if (value2 < min2)
 						min2 = value2;
-					//if (i<=limit_points)
-					{
-						sum2 += value2;
-						count2++;
-					}
+                    sum2 += value2;
+                    count2++;
 					this.maps[MR_MAP].points.push([i, value2]);
-				}
+				} 
 				prev_value = value;
-				//if (i<=limit_points)
-				{
-					sum += value;
-					count++;
-				}
-			}
+                sum += value;
+                count++;
+			} 
 		}
 		console.log(fix_limit);
 		if (fix_limit) {
@@ -1223,7 +1420,7 @@ class xMap {
 			this.maps[X_MAP].mapLine.sig2Line2.points = [[1, point], [e_count, point]];
 
 			//расчеты mr карты
-			point = roundNumber(sum2 / count2, 1);
+			point = roundNumber(sum2 / count2, this.valuePlaces);
 			this.maps[MR_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 
 			point = D4[0] * this.maps[MR_MAP].mapLine.cLine.points[0][1];
@@ -1251,10 +1448,10 @@ class xMap {
 			if (this.hideMinus && min2 < 0)
 				min2 = 0;
 		} else {
-			point = roundNumber(sum / count, 1);
+			point = roundNumber(sum / count, this.valuePlaces);
 			this.maps[X_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 			limits.middle = point;
-			point = roundNumber(sum2 / count2, 1);
+			point = roundNumber(sum2 / count2, this.valuePlaces);
 			this.maps[MR_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 			point = this.maps[X_MAP].mapLine.cLine.points[0][1] + E2 * this.maps[MR_MAP].mapLine.cLine.points[0][1];
 			this.maps[X_MAP].mapLine.tLine.points = [[1, point], [e_count, point]];
@@ -1307,10 +1504,11 @@ class xMap {
 				min2 = 0;
 		}
 
-		this.maps[X_MAP].max_y = Math.ceil(max);
-		this.maps[MR_MAP].max_y = Math.ceil(max2);
-		this.maps[X_MAP].min_y = Math.floor(min);
-		this.maps[MR_MAP].min_y = Math.floor(min2);
+        // TODO: подумать над округлением
+		this.maps[X_MAP].max_y = max;//Math.ceil(max);
+		this.maps[MR_MAP].max_y = max2; //Math.ceil(max2);
+		this.maps[X_MAP].min_y = min; //Math.floor(min);
+		this.maps[MR_MAP].min_y = min2; //Math.floor(min2);
 
 		let range = (limits.top - limits.middle) / 5;
 		limits.limit1top = limits.middle + range;
@@ -1333,49 +1531,25 @@ class xMap {
 		} else {
 			this.maps[X_MAP].points = points;
 			this.maps[X_MAP].max_x = points.length;
-            // TODO: max_x может не быть равным кол-во точек!
 		}
-		if (max_point !== undefined) {
+
+    	if (max_point !== undefined) {
 			this.maps[X_MAP].max_y = max_point;
-		} else {
-            for (let i in this.maps[X_MAP].points) {
-                if (this.maps[X_MAP].points[i][1] > this.maps[X_MAP].max_y)
-                    this.maps[X_MAP].max_y = points[i][1];
-            }
-		}
+		} 
 		if (min_point !== undefined) {
 			this.maps[X_MAP].min_y = min_point;
-		} else {
-            for (let i in this.maps[X_MAP].points) {
-                if (this.maps[X_MAP].points[i][1] < this.maps[X_MAP].min_y)
-                    this.maps[X_MAP].min_y = points[i][1];
-            }
 		}
 
 		return this;
 	}
-	// получение карты
-	get_map(map_name) {
-		if (this.maps[map_name])
-			return this.maps[map_name];
-		return undefined;
-	}
-    // показывать отрицательные значения
-    setHideMinus(enable = false) {
-        this.hideMinus = enable;
-        return this;
-    }
 }
 // класс mx карты
-class mxMap {
+class mxMap extends AbstractMap {
 	// конструктор
 	constructor(source, width, height) {
-		this.maps = {};
+        super();
 		this.maps[MX_MAP] = new map(source[0], width, height);
 		this.maps[R_MAP] = new map(source[1], width, height);
-		this.q_count = 0;
-        // TODO: показ минусов - обработка
-        this.hideMinus = false;
 	}
 	// рассчетная функция для mx - R карты
 	calc(limits = new limitsClass, fix_limit = false) {
@@ -1406,11 +1580,11 @@ class mxMap {
 				}
 			}
 		}
-		point = roundNumber(sum / count, 1);
+		point = roundNumber(sum / count, this.valuePlaces);
 		this.maps[MX_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 		console.log(point);
 		limits.middle = point;
-		point = roundNumber(sum2 / count, 1);
+		point = roundNumber(sum2 / count, this.valuePlaces);
 		this.maps[R_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 		point = this.maps[MX_MAP].mapLine.cLine.points[0][1] + A2[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1];
 		this.maps[MX_MAP].mapLine.tLine.points = [[1, point], [e_count, point]];
@@ -1520,26 +1694,14 @@ class mxMap {
 
 		return this;
 	}
-	// получение карты
-	get_map(map_name) {
-		if (this.maps[map_name])
-			return this.maps[map_name];
-		return undefined;
-	}
-    // показывать отрицательные значения
-    setHideMinus(enable = false) {
-        this.hideMinus = enable;
-        return this;
-    }
 }
 // класс cx карты
-class cxMap {
+class cxMap extends AbstractMap {
 	// конструктор
 	constructor(source, width, height) {
-		this.maps = {};
+		super();
 		this.maps[CX_MAP] = new map(source[0], width, height);
 		this.maps[R_MAP] = new map(source[1], width, height);
-		this.q_count = 0;
 	}
 	// рассчетная функция для mx - R карты
 	calc(limits = new limitsClass, fix_limit = false) {
@@ -1570,11 +1732,11 @@ class cxMap {
 				}
 			}
 		}
-		point = roundNumber(sum / count, 1);
+		point = roundNumber(sum / count, this.valuePlaces);
 		this.maps[CX_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 		console.log(point);
 		limits.middle = point;
-		point = roundNumber(sum2 / count, 1);
+		point = roundNumber(sum2 / count, this.valuePlaces);
 		this.maps[R_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
 		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] + A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1];
 		this.maps[CX_MAP].mapLine.tLine.points = [[1, point], [e_count, point]];
@@ -1701,13 +1863,177 @@ class cxMap {
 
 		return this;
 	}
-	// получение карты
-	get_map(map_name) {
-		if (this.maps[map_name])
-			return this.maps[map_name];
-		return undefined;
+}
+
+// класс p карты
+class pMap extends AbstractMap {
+	// конструктор
+	constructor(source, width, height) {
+		super();
+		this.maps[P_MAP] = new map(source[0], width, height);
+	}
+	// рассчетная функция для mx - R карты
+	calc(limits = new limitsClass, fix_limit = false) {
+		let prev_value = null,
+			sum = 0,
+			sum2 = 0,
+			value = 0,
+			value2 = 0,
+			count = 0,
+			count2 = 0,
+			max = this.maps[P_MAP].max_y,
+			max2 = 0,
+			min = this.maps[P_MAP].min_y,
+			min2 = null,
+			point = 0,
+			sigma = 0,
+			e_count = this.maps[P_MAP].max_x;
+
+		for (let i = 1; i <= e_count; i++) {
+			if (this.maps[CX_MAP].points[i - 1][2]) {
+				value = this.maps[CX_MAP].points[i - 1][1];
+				value2 = this.maps[R_MAP].points[i - 1][1];
+				//if (i<=limit_points)
+				{
+					sum += value;
+					sum2 += value2;
+					count++;
+				}
+			}
+		}
+		point = roundNumber(sum / count, this.valuePlaces);
+		this.maps[CX_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
+		console.log(point);
+		limits.middle = point;
+		point = roundNumber(sum2 / count, this.valuePlaces);
+		this.maps[R_MAP].mapLine.cLine.points = [[1, point], [e_count, point]];
+		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] + A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1];
+		this.maps[CX_MAP].mapLine.tLine.points = [[1, point], [e_count, point]];
+		limits.top = point;
+		if (point > max)
+			max = point;
+		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] + A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] / 3;
+		this.maps[CX_MAP].mapLine.sig1Line1.points = [[1, point], [e_count, point]];
+		limits.sig1top = point;
+		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] + A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] / 3 * 2;
+		this.maps[CX_MAP].mapLine.sig2Line1.points = [[1, point], [e_count, point]];
+		limits.sig2top = point;
+		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] - A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1];
+		if (point < 0)
+			point = 0;
+		this.maps[CX_MAP].mapLine.bLine.points = [[1, point], [e_count, point]];
+		limits.bottom = point;
+		if (point < min)
+			min = point;
+		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] - A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] / 3;
+		if (point < 0)
+			point = 0;
+		this.maps[CX_MAP].mapLine.sig1Line2.points = [[1, point], [e_count, point]];
+		limits.sig1bottom = point;
+		point = this.maps[CX_MAP].mapLine.cLine.points[0][1] - A4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] / 3 * 2;
+		if (point < 0)
+			point = 0;
+		this.maps[CX_MAP].mapLine.sig2Line2.points = [[1, point], [e_count, point]];
+		limits.sig2bottom = point;
+		point = D4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1];
+		this.maps[R_MAP].mapLine.tLine.points = [[1, point], [e_count, point]];
+		if (point > max2)
+			max2 = point;
+		point = this.maps[R_MAP].mapLine.cLine.points[0][1] + (D4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] - this.maps[R_MAP].mapLine.cLine.points[0][1]) / 3;
+		this.maps[R_MAP].mapLine.sig1Line1.points = [[1, point], [e_count, point]];
+		point = this.maps[R_MAP].mapLine.cLine.points[0][1] + (D4[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] - this.maps[R_MAP].mapLine.cLine.points[0][1]) / 3 * 2;
+		this.maps[R_MAP].mapLine.sig2Line1.points = [[1, point], [e_count, point]];
+		point = D3[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1];
+		this.maps[R_MAP].mapLine.bLine.points = [[1, point], [e_count, point]];
+		if (point < min2)
+			min2 = point;
+		point = this.maps[R_MAP].mapLine.cLine.points[0][1] + (D3[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] - this.maps[R_MAP].mapLine.cLine.points[0][1]) / 3;
+		this.maps[R_MAP].mapLine.sig1Line2.points = [[1, point], [e_count, point]];
+		point = this.maps[R_MAP].mapLine.cLine.points[0][1] + (D3[this.q_count - 1] * this.maps[R_MAP].mapLine.cLine.points[0][1] - this.maps[R_MAP].mapLine.cLine.points[0][1]) / 3 * 2;
+		this.maps[R_MAP].mapLine.sig2Line2.points = [[1, point], [e_count, point]];
+
+		this.maps[CX_MAP].max_y = Math.ceil(max);
+		this.maps[R_MAP].max_y = Math.ceil(max2);
+		this.maps[CX_MAP].min_y = Math.floor(min);
+		this.maps[R_MAP].min_y = Math.floor(min2);
+
+		let range = (limits.top - limits.middle) / 5;
+		limits.limit1top = limits.middle + range;
+		limits.limit2top = limits.limit1top + (2 * range);
+		limits.limit1bottom = limits.middle - range;
+		limits.limit2bottom = limits.limit1bottom - (2 * range);
+
+		console.log(limits);
+
+		return this;
+	}
+	// точки
+	points(points, grouped = false, max_point, min_point) {
+
+		function compareNumeric(a, b) {
+			if (a > b) return 1;
+			if (a < b) return -1;
+		}
+
+		let point = 0,
+			cnt = points[0][1].length,
+			max = 0,
+			min = 0,
+			max_y = points[0][1][0],
+			min_y = points[0][1][0],
+			p = 0,
+			cnum = 0,
+			odd = false,
+			arr = [];
+
+		console.log(points);
+
+		if (cnt % 2 == 0) {
+			cnum = cnt / 2;
+			odd = false
+		} else {
+			cnum = (cnt - 1) / 2;
+			odd = true;
+		}
+		for (let i in points) {
+			point = 0;
+			max = points[i][1][0];
+			min = points[i][1][0];
+			arr = [];
+			for (let j in points[i][1]) {
+				arr.push(points[i][1][j]);
+				if (points[i][1][j] > max)
+					max = points[i][1][j];
+				if (points[i][1][j] < min)
+					min = points[i][1][j];
+				if (points[i][1][j] > max_y)
+					max_y = points[i][1][j];
+				if (points[i][1][j] < min_y)
+					min_y = points[i][1][j];
+			}
+			arr.sort(compareNumeric);
+			if (odd) {
+				point = arr[cnum];
+			} else {
+				point = (arr[cnum] + arr[cnum + 1]) / 2;
+			}
+			p++;
+			this.maps[CX_MAP].points.push([p, point, points[i][2], points[i][3]]);
+			this.maps[R_MAP].points.push([p, max - min, points[i][2], points[i][3]]);
+		}
+
+		this.q_count = cnt;
+
+		this.maps[CX_MAP].max_x = p;
+		this.maps[CX_MAP].max_y = max_y;
+		this.maps[CX_MAP].min_y = min_y;
+
+		console.log(this);
+
+		return this;
 	}
 }
+
 // класс-прослойка контрольной карты
 class controlChart {
 	// конструктор
@@ -1718,16 +2044,24 @@ class controlChart {
 			this.сс = new mxMap(source, width, height);
 		} else if (type == CX_MAP) {
 			this.сс = new cxMap(source, width, height);
+		} else if (type == P_MAP) {
+            this.сс = new pMap(source, width, height);
+        }
+		let chart = this;
+        // установка события на клик на точку по-умолчанию
+		for (let i in this.сс.maps) {
+			this.сс.maps[i].setClickCall(function (indx, val) {
+                // отключаем точку
+				this.points[indx - 1][2] = !this.points[indx - 1][2];
+				chart.calc(chart.limits, chart.fix_limit).paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
+			});
 		}
+
 	}
 	// функция, которая значение точки
 	setValueFunc(func) {
-		let chart = this;
 		for (let i in this.сс.maps) {
 			this.сс.maps[i].setGetValue(func);
-			this.сс.maps[i].setClickCall(function (indx, val) {
-				chart.calc(chart.limits, chart.fix_limit).paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
-			});
 		}
 		return this;
 	}
@@ -1736,19 +2070,35 @@ class controlChart {
 		for (let i in this.сс.maps) {
 			this.сс.maps[i].setGetSublineValue(func);
 		}
+        return this;
 	}
 	// установка события на клик по точке
-	setClickFunc(func) {
-		let chart = this;
+	setClickFunc(func, disable=true, repaint=true) {
+        let chart = this;
 		for (let i in this.сс.maps) {
-			this.сс.maps[i].setClickCall(function (indx, val) {
-				console.log(chart);
-				chart.calc(chart.limits, chart.fix_limit).paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
-				func(indx, val);
-			});
+			this.сс.maps[i].setClickCall(function(indx, val) {
+                if (disable) {
+                    // отключаем точку
+				    this.points[indx - 1][2] = !this.points[indx - 1][2];
+                    chart.calc(chart.limits, chart.fix_limit);
+                }
+                if (repaint) {
+                    // перересовка
+				   chart.paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
+                }
+                func(indx, val);
+            });
 		}
 		return this;
 	}
+	// установка события на клик по точке
+	setContextmenuFunc(func) {
+		for (let i in this.сс.maps) {
+			this.сс.maps[i].setContextmenuCall(func);
+		}
+		return this;
+	}
+    //
 	setClickEvent(enable = true) {
 		for (let i in this.сс.maps) {
 			this.сс.maps[i].setClickEvent(enable);
@@ -1804,6 +2154,7 @@ class controlChart {
 		this.limits = limits;
 		this.fix_limit = fix_limit;
 		this.сс.calc(limits, fix_limit);
+
 		return this;
 	};
 	// метод отрисовки графика
@@ -1827,5 +2178,20 @@ class controlChart {
     setHideMinus(enable = false) {
 		this.сс.setHideMinus(enable);
         return this;
+    }
+    //
+    setDecimalPlaces(ticketPlaces=0, valuePlaces=1) {
+		for (let i in this.сс.maps) {
+		    this.сс.maps[i].setDecimalPlaces(ticketPlaces, valuePlaces);
+		}
+        this.сс.setValuePlaces(valuePlaces);
+		return this;
+    }
+    // установить требования
+    setRequirements(bottom, top, color="blue") {
+		for (let i in this.сс.maps) {
+		    this.сс.maps[i].setRequirements(bottom, top, color);
+		}
+		return this;
     }
 }

@@ -1297,7 +1297,7 @@ class map {
 			return {text: "Не удовлетворяет!", color: "red"};
     }
 }
-// абстрактный клас контрольной карты
+// абстрактный класс контрольной карты
 class AbstractMap {
     constructor() {
         if (this.constructor == AbstractMap) {
@@ -2039,18 +2039,18 @@ class controlChart {
 	// конструктор
 	constructor(type = X_MAP, source = [], width, height) {
 		if (type == X_MAP || type == MR_MAP) {
-			this.сс = new xMap(source, width, height);
+			this.cc = new xMap(source, width, height);
 		} else if (type == MX_MAP || type == R_MAP) {
-			this.сс = new mxMap(source, width, height);
+			this.cc = new mxMap(source, width, height);
 		} else if (type == CX_MAP) {
-			this.сс = new cxMap(source, width, height);
+			this.cc = new cxMap(source, width, height);
 		} else if (type == P_MAP) {
-            this.сс = new pMap(source, width, height);
+            this.cc = new pMap(source, width, height);
         }
 		let chart = this;
         // установка события на клик на точку по-умолчанию
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].setClickCall(function (indx, val) {
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].setClickCall(function (indx, val) {
                 // отключаем точку
 				this.points[indx - 1][2] = !this.points[indx - 1][2];
 				chart.calc(chart.limits, chart.fix_limit).paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
@@ -2060,57 +2060,57 @@ class controlChart {
 	}
 	// функция, которая значение точки
 	setValueFunc(func) {
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].setGetValue(func);
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].setGetValue(func);
 		}
 		return this;
 	}
 	// функция, которая задает функцию обработки наведения на дополнительную линию
 	setSublineValueFunc(func) {
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].setGetSublineValue(func);
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].setGetSublineValue(func);
 		}
         return this;
 	}
 	// установка события на клик по точке
 	setClickFunc(func, disable=true, repaint=true) {
-        let chart = this;
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].setClickCall(function(indx, val) {
-                if (disable) {
-                    // отключаем точку
-				    this.points[indx - 1][2] = !this.points[indx - 1][2];
-                    chart.calc(chart.limits, chart.fix_limit);
-                }
-                if (repaint) {
-                    // перересовка
-				   chart.paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
-                }
-                func(indx, val);
-            });
+        	let chart = this;
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].setClickCall(function(indx, val) {
+		                if (disable) {
+		                	// отключаем точку
+					this.points[indx - 1][2] = !this.points[indx - 1][2];
+		                	chart.calc(chart.limits, chart.fix_limit);
+		                }
+		                if (repaint) {
+		                	// перересовка
+					chart.paint(chart.scale, chart.ticks, chart.area, chart.rules, chart.legendOffset, chart.subline);
+		                }
+		                func(indx, val);
+            		});
 		}
 		return this;
 	}
 	// установка события на клик по точке
 	setContextmenuFunc(func) {
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].setContextmenuCall(func);
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].setContextmenuCall(func);
 		}
 		return this;
 	}
     //
 	setClickEvent(enable = true) {
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].setClickEvent(enable);
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].setClickEvent(enable);
 		}
 		return this;
 	}
 	// установка подписей осей
 	setAxis() {
 		let indx = 0;
-		for (let i in this.сс.maps) {
+		for (let i in this.cc.maps) {
 			if (arguments.length >= (indx + 1)) {
-				this.сс.maps[i].setAxis(arguments[indx]);
+				this.cc.maps[i].setAxis(arguments[indx]);
 			}
 			indx++;
 		}
@@ -2119,9 +2119,9 @@ class controlChart {
 	// установка подписей осей
 	setCaptions() {
 		let indx = 0;
-		for (let i in this.сс.maps) {
+		for (let i in this.cc.maps) {
 			if (arguments.length >= (indx + 1)) {
-				this.сс.maps[i].setCaption(arguments[indx]);
+				this.cc.maps[i].setCaption(arguments[indx]);
 			}
 			indx++;
 		}
@@ -2129,31 +2129,14 @@ class controlChart {
 	}
 	// установка точек графика
 	points(points, grouped = false, max_point, min_point) {
-		this.сс.points(points, grouped, max_point, min_point);
-
-		/*
-				if (points.length === 1) {
-					points.push([2, points[0][1]]);
-				}
-				if (grouped) {
-					for (let i in points) {
-						this.сс.maps[X_MAP].points = this.сс.maps[X_MAP].points.concat(points[i].items);
-						this.сс.maps[X_MAP].max_x+=points[i].count;
-					}
-				} else {
-					this.сс.maps[X_MAP].points = points;
-					this.сс.maps[X_MAP].max_x = points.length;
-				}
-				this.сс.maps[X_MAP].max_y = max_point;
-				this.сс.maps[X_MAP].min_y = min_point;*/
-
+		this.cc.points(points, grouped, max_point, min_point);
 		return this;
 	}
 	// метод вычисления контрольных пределов
 	calc(limits = new limitsClass, fix_limit = false) {
 		this.limits = limits;
 		this.fix_limit = fix_limit;
-		this.сс.calc(limits, fix_limit);
+		this.cc.calc(limits, fix_limit);
 
 		return this;
 	};
@@ -2165,33 +2148,38 @@ class controlChart {
 		this.rules = rules;
 		this.legendOffset = legendOffset;
 		this.subline = subline;
-		for (let i in this.сс.maps) {
-			this.сс.maps[i].paint(scale, ticks, area, rules, legendOffset, subline);
+		for (let i in this.cc.maps) {
+			this.cc.maps[i].paint(scale, ticks, area, rules, legendOffset, subline);
 		}
 		return this;
 	}
 	// получение карты
 	get_map(map_name) {
-		return this.сс.get_map(map_name);
+		return this.cc.get_map(map_name);
 	}
     // показывать отрицательные значения
     setHideMinus(enable = false) {
-		this.сс.setHideMinus(enable);
+		this.cc.setHideMinus(enable);
         return this;
     }
     //
     setDecimalPlaces(ticketPlaces=0, valuePlaces=1) {
-		for (let i in this.сс.maps) {
-		    this.сс.maps[i].setDecimalPlaces(ticketPlaces, valuePlaces);
+		for (let i in this.cc.maps) {
+		    this.cc.maps[i].setDecimalPlaces(ticketPlaces, valuePlaces);
 		}
-        this.сс.setValuePlaces(valuePlaces);
+        this.cc.setValuePlaces(valuePlaces);
 		return this;
     }
     // установить требования
     setRequirements(bottom, top, color="blue") {
-		for (let i in this.сс.maps) {
-		    this.сс.maps[i].setRequirements(bottom, top, color);
+		for (let i in this.cc.maps) {
+		    this.cc.maps[i].setRequirements(bottom, top, color);
 		}
+		return this;
+    }
+    // зафиксировать масштаб по оси Y для карты
+    fixScale(map_name, max_y, min_y) {
+        this.cc.fixScale(map_name, max_y, min_y);
 		return this;
     }
 }
